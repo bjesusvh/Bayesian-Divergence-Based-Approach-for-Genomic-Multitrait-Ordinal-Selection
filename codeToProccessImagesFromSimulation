@@ -1,0 +1,309 @@
+#########################################################
+## ------- Preliminar  --------------------------------##
+
+library(dplyr)
+library(purrr)
+library(tidyverse)
+library(gamlss)
+library(data.table)
+
+theme_set(theme_minimal())
+
+setwd("/Users/bjesusvh/Desktop/Paper2025GS/simulations")
+source("src.R")
+source("gamlss.R")
+
+
+########################################################
+## ------- Funcion que lee y frafica -----------------##
+df1 <- procesa("E1")
+df2 <- procesa("E2")
+df3 <- procesa("E3")
+df4 <- procesa("E4")
+df5 <- procesa("E5")
+df6 <- procesa("E6")
+
+df1$Scenario <- "E1"
+df2$Scenario <- "E2"
+df3$Scenario <- "E3"
+df4$Scenario <- "E4"
+df5$Scenario <- "E5"
+df6$Scenario <- "E6"
+
+
+#########################################################
+### Escenario E1 y E2
+dt1 <- rbind(df1, df2)
+(plot1 <- graficando(dt1) + labs(title = "Figure 2"))
+
+# Save as PNG with high resolution (300 DPI)
+ggsave(
+  filename = "./figures/Figue1.png",
+  plot = plot1,
+  device = "png",
+  dpi = 300,       # Resolution in dots per inch
+  width = 12,       # Width in inches
+  height = 8,      # Height in inches
+  units = "in"     # Units for width and height
+)
+
+# Save as TIFF with high resolution (300 DPI)
+ggsave(
+  filename = "./figures/Figure1.tiff",
+  plot = plot1,
+  device = "tiff",
+  dpi = 300,       # Resolution in dots per inch
+  width = 12,       # Width in inches
+  height = 8,      # Height in inches
+  units = "in"     # Units for width and height
+)
+
+#########################################################
+### Escenario E3 y E4
+dt2 <- rbind(df3, df4)
+(plot2 <- graficando(dt2) + labs(title = "Figure 3"))
+
+# Save as PNG with high resolution (300 DPI)
+ggsave(
+  filename = "./figures/Figue2.png",
+  plot = plot2,
+  device = "png",
+  dpi = 300,       # Resolution in dots per inch
+  width = 12,       # Width in inches
+  height = 8,      # Height in inches
+  units = "in"     # Units for width and height
+)
+
+# Save as TIFF with high resolution (300 DPI)
+ggsave(
+  filename = "./figures/Figure2.tiff",
+  plot = plot2,
+  device = "tiff",
+  dpi = 300,       # Resolution in dots per inch
+  width = 12,       # Width in inches
+  height = 8,      # Height in inches
+  units = "in"     # Units for width and height
+)
+
+#########################################################
+### Escenario E5 y E6
+dt3 <- rbind(df5, df6)
+(plot3 <- graficando(dt3) + labs(title = "Figure 4"))
+
+# Save as PNG with high resolution (300 DPI)
+ggsave(
+  filename = "./figures/Figue3.png",
+  plot = plot3,
+  device = "png",
+  dpi = 300,       # Resolution in dots per inch
+  width = 12,       # Width in inches
+  height = 8,      # Height in inches
+  units = "in"     # Units for width and height
+)
+
+# Save as TIFF with high resolution (300 DPI)
+ggsave(
+  filename = "./figures/Figure3.tiff",
+  plot = plot3,
+  device = "tiff",
+  dpi = 300,       # Resolution in dots per inch
+  width = 12,       # Width in inches
+  height = 8,      # Height in inches
+  units = "in"     # Units for width and height
+)
+
+
+
+## Cambian los seis escenarios
+
+procesa <- function(scenario = NULL){
+  
+  # bhattacharyya outputs
+  
+  files1 <- list.files(paste0("./", scenario, "/Bhattacharyya/"), pattern = "*.csv", full.names = TRUE)
+  combined_data1 <- map_df(files1, ~ read.csv(.))
+  combined_data1$loss <- "Bhattacharyya"
+  
+  # kl outputs
+  files2 <- list.files(paste0("./", scenario, "/kl/"), pattern = "*.csv", full.names = TRUE)
+  combined_data2 <- map_df(files2, ~ read.csv(.))
+  combined_data2$loss <- "Kullback-Leibler"
+  
+  # hellinger outputs
+  files3 <- list.files(paste0("./", scenario, "/hellinger/"), pattern = "*.csv", full.names = TRUE)
+  combined_data3 <- map_df(files3, ~ read.csv(.))
+  combined_data3$loss <- "Hellinger"
+  
+  # joint results
+  cb <- rbind.data.frame(combined_data1, combined_data2, combined_data3) 
+  
+  # Nombre de los traits
+  colnames(cb)[6:14] <- c(
+    'Trait 1, Category 1', 'Trait 1, Category 2', 'Trait 1, Category 3', 
+    'Trait 2, Category 1', 'Trait 2, Category 2', 'Trait 2, Category 3',
+    'Trait 3, Category 1', 'Trait 3, Category 2', 'Trait 3, Category 3'
+  )
+  return(cb)
+}
+
+
+graficando <- function(df){
+  
+  # Pivot and summarize the data
+  df_summary <- pivot_longer(df, cols = starts_with("Trait"), names_to = "variable", values_to = "value") %>%
+    group_by(cycle, loss, variable, Scenario) %>%
+    summarise(media = mean(value), desvE = sd(value), .groups = "drop")
+  
+  # Define hline values for each category
+  hline_data <- tibble(
+    variable = c(
+      "Trait 1, Category 1",
+      "Trait 1, Category 2",
+      "Trait 1, Category 3",
+      "Trait 2, Category 1",
+      "Trait 2, Category 2",
+      "Trait 2, Category 3",
+      "Trait 3, Category 1",
+      "Trait 3, Category 2",
+      "Trait 3, Category 3"
+    ),
+    yintercept = c(0.1, 0.2, 0.7, 0.1, 0.2, 0.7, 0.1, 0.2, 0.7) # Match categories to their intercepts
+  )
+  
+  # Merge hline values with summary data
+  df_summary <- df_summary %>%
+    left_join(hline_data, by = "variable")
+  
+  # Dynamically extract Scenarios and assign line types
+  unique_scenarios <- unique(df_summary$Scenario)
+  linetype_values <- setNames(c("twodash", "solid", "dotted", "dotdash")[seq_along(unique_scenarios)], unique_scenarios)
+  
+  # Create the plot
+  ggplot(df_summary, aes(cycle, media, col = loss, fill = loss, linetype = Scenario)) +
+    geom_line(linewidth = 1.2) +
+    geom_hline(aes(yintercept = yintercept), linetype = "dashed", color = "red", linewidth = 0.5) +
+    facet_wrap(~ variable, scales = "free") +
+    scale_color_manual(
+      values = c("red", "blue", "darkgreen"),
+      name = "Loss"
+    ) +
+    scale_fill_manual(
+      values = c("red", "blue", "darkgreen"),
+      name = ""
+    ) +
+    scale_linetype_manual(
+      values = linetype_values, # Dynamic mapping for Scenario
+      name = "Scenario"
+    ) +
+    scale_x_continuous(breaks = scales::pretty_breaks(n = 10)) +
+    labs(x = "Cycle of selection", y = "Average proportion")  + 
+    theme(
+      plot.title = element_text(size = 18, face = "bold"),
+      legend.position = "top",       # Move legend to the top
+      legend.direction = "horizontal", # Arrange legend items horizontally
+      legend.title = element_text(size = 16), # Adjust title size
+      legend.text = element_text(size = 16),    # Adjust text size
+      axis.text.x = element_text(size = 12),
+      axis.text.y = element_text(size = 12),
+      axis.title.x = element_text(size = 14),
+      axis.title.y = element_text(size = 14),
+      strip.text = element_text(size = 14),
+    )
+}
+analisis_f <- function(datos, loss_ref = NULL){
+  
+  colnames(datos)[6:14] <- c('T1C1', 'T1C2', 'T1C3', 'T2C1', 'T2C2', 'T2C3', 'T3C1', 'T3C2', 'T3C3')
+  datos$loss <- factor(datos$loss)
+  
+  ### Seleccionamos T1C3, T2C3 y T3C3
+  datos <- datos %>% select(cycle, Scenario, loss, T1C3, T2C3, T3C3) 
+  
+  ### Bhattacharyya is the reference loss function
+  datos$loss <- relevel(datos$loss, ref = loss_ref)
+  
+  m1 <- gamlss(
+    T1C3 ~ pb(cycle) + loss ,       # Formula for the mean
+    sigma.fo = ~ loss, # Formula for the variance
+    family = NO,                              # Normal distribution
+    data = datos,
+    control = gamlss.control(n.cyc = 100, trace = TRUE)
+  )
+  
+  out1 <- summary(m1)
+  
+  m2 <- gamlss(
+    T2C3 ~ pb(cycle) + loss,       # Formula for the mean
+    sigma.fo = ~ loss , # Formula for the variance
+    family = NO,                              # Normal distribution
+    data = datos,
+    control = gamlss.control(n.cyc = 100, trace = TRUE)
+  )
+  
+  out2 <- summary(m2)
+  
+  m3 <- gamlss(
+    T3C3 ~ pb(cycle) + loss,       # Formula for the mean
+    sigma.fo = ~ loss, 
+    family = NO,                              # Normal distribution
+    data = datos,
+    control = gamlss.control(n.cyc = 100, trace = TRUE)
+  )
+  
+  out3 <- summary(m3)
+  
+  return(list(out1, out2, out3))
+  
+}
+
+
+
+analisis <- function(datos, loss_ref = NULL, esc_ref = NULL){
+  
+  colnames(datos)[6:14] <- c('T1C1', 'T1C2', 'T1C3', 'T2C1', 'T2C2', 'T2C3', 'T3C1', 'T3C2', 'T3C3')
+  datos$loss <- factor(datos$loss)
+  datos$Scenario <- factor(datos$Scenario)
+  
+  ### Seleccionamos T1C3, T2C3 y T3C3
+  datos <- datos %>% select(cycle, Scenario, loss, T1C3, T2C3, T3C3) 
+  
+  ### Bhattacharyya is the reference loss function
+  datos$loss <- relevel(datos$loss, ref = loss_ref)
+  datos$Scenario <- relevel(datos$Scenario, ref = esc_ref)
+  
+  
+  m1 <- gamlss(
+    T1C3 ~ pb(cycle) + loss + Scenario,       # Formula for the mean
+    sigma.fo = ~ loss + Scenario, # Formula for the variance
+    family = NO,                              # Normal distribution
+    data = datos,
+    control = gamlss.control(n.cyc = 100, trace = TRUE)
+  )
+  
+  out1 <- summary(m1)
+  
+  m2 <- gamlss(
+    T2C3 ~ pb(cycle) + loss + Scenario,       # Formula for the mean
+    sigma.fo = ~ loss + Scenario, # Formula for the variance
+    family = NO,                              # Normal distribution
+    data = datos,
+    control = gamlss.control(n.cyc = 100, trace = TRUE)
+  )
+  
+  out2 <- summary(m2)
+  
+  m3 <- gamlss(
+    T3C3 ~ pb(cycle) + loss + Scenario,       # Formula for the mean
+    sigma.fo = ~ loss + Scenario, 
+    family = NO,                              # Normal distribution
+    data = datos,
+    control = gamlss.control(n.cyc = 100, trace = TRUE)
+  )
+  
+  out3 <- summary(m3)
+  
+  return(list(out1, out2, out3))
+  
+}
+
+
+
